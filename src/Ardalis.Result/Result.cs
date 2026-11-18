@@ -1,11 +1,17 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
 namespace Ardalis.Result
 {
+#if NET6_0_OR_GREATER
+    [Union]
+    public class Result<T> : IResult, Result<T>.IUnionMembers
+#else
     public class Result<T> : IResult
+#endif
     {
         protected Result() { }
 
@@ -33,20 +39,43 @@ namespace Ardalis.Result
         [JsonIgnore]
         public Type ValueType => typeof(T);
         [JsonInclude]
-        public ResultStatus Status { get; protected set; } = ResultStatus.Ok;
+        public ResultStatus Status { get; protected internal set; } = ResultStatus.Ok;
 
         public bool IsSuccess => Status is ResultStatus.Ok or ResultStatus.NoContent or ResultStatus.Created;
 
         [JsonInclude]
-        public string SuccessMessage { get; protected set; } = string.Empty;
+        public string SuccessMessage { get; protected internal set; } = string.Empty;
         [JsonInclude]
-        public string CorrelationId { get; protected set; } = string.Empty;
+        public string CorrelationId { get; protected internal set; } = string.Empty;
         [JsonInclude]
-        public string Location { get; protected set; } = string.Empty;
+        public string Location { get; protected internal set; } = string.Empty;
         [JsonInclude]
-        public IEnumerable<string> Errors { get; protected set; } = [];
+        public IEnumerable<string> Errors { get; protected internal set; } = [];
         [JsonInclude]
-        public IEnumerable<ValidationError> ValidationErrors { get; protected set; } = [];
+        public IEnumerable<ValidationError> ValidationErrors { get; protected internal set; } = [];
+
+#if NET6_0_OR_GREATER
+#nullable enable
+        public interface IUnionMembers
+        {
+            public static Result<T> Create(T value) => new(value);
+            public static Result<T> Create(Result value) => value;
+
+            public object? Value { get; }
+        }
+
+        object? IUnionMembers.Value => IsSuccess ? Value : ToFailureResult();
+#nullable restore
+
+        private Result ToFailureResult() => new(Status)
+        {
+            Errors = Errors,
+            ValidationErrors = ValidationErrors,
+            CorrelationId = CorrelationId,
+            SuccessMessage = SuccessMessage,
+            Location = Location
+        };
+#endif
 
         /// <summary>
         /// Returns the current value.
